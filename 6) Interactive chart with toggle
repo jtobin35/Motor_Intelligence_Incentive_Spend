@@ -1,0 +1,1 @@
+plt.show(interact(final, name=all_data.model.unique(),date=dates))
