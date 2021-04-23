@@ -1,0 +1,106 @@
+def final(name,date):
+    global all_data
+    global final_incentive_all
+    global incentive
+    #Final Forecasted Incentives chosen for the forecast with 60 months of historical data
+    all_data = pd.read_excel(f'/test/data/hadoop-data/JT/White Book/Final/{date}/FINAL_Incentive.xlsx')
+    #Final Forecasted Incentives chosen for the forecast with 60 months of historical data
+    incentive = pd.read_excel(f'/test/data/hadoop-data/JT/White Book/Final/{date}/FINAL_Incentive.xlsx')
+    #Reads in the Maturitity Schedule
+    all_volume = pd.read_excel(f'/test/data/hadoop-data/JT/White Book/Final/{date}/FINAL_VOLUME.xlsx')
+    #Reads in the disposal volume
+    disp = pd.read_excel(f'/test/data/hadoop-data/JT/White Book/Final/{date}/DISP_BY_MODEL.xlsx')
+    #Reads in all 24 potential forecasts
+    final_incentive = pd.read_excel(f'/test/data/hadoop-data/JT/White Book/Final/{date}/FINAL_INCENTIVE_FORECAST.xlsx')
+    #Reads in all 24 potential forecasts, repeating above, it's used for the paramters in the toggle
+    final_incentive_all = pd.read_excel(f'/test/data/hadoop-data/JT/White Book/Final/{date}/FINAL_INCENTIVE_FORECAST.xlsx')
+    
+    #Creates Date, type and filters down to model
+    incentive['DATE'] = pd.to_datetime(incentive['month'], format="%m/%d/%Y").dt.date #create date colum
+    incentive['type'] = ['Historical' if  x < datetime.date(2021,4,1) else 'Forecast' for x in incentive['DATE']] #historical vs forecast #update
+    incentive = incentive[incentive['model']==f'{name}']
+    
+    #filters incentive needs to be updated for each forecast
+    filter_incentive = incentive[incentive['DATE']>=datetime.date(2021,4,1)]#update
+
+    #filters down to model, renames freq to volume and creates a date variable
+    model_volume = all_volume[all_volume['model']==f'{name}']
+    model_volume =model_volume.rename(columns= {'_FREQ_':'volume'})
+    model_volume['DATE'] = pd.to_datetime(model_volume['Current_Maturity_Date_ups'], format="%m/%d/%Y").dt.date #create date colum    
+
+    #filters disposals, renames freq to volume, creates date var, drops irrelevant columns, and fitlers date
+    #date filter needs to be updated each forecast
+    disp = disp[disp['model']==f'{name}']
+    disp = disp.rename(columns={'_FREQ_':'volume'})
+    disp['DATE'] = pd.to_datetime(disp['Monyy_Sold'], format="%m/%d/%Y").dt.date #create date colum
+    disp = disp.drop(['Monyy_Sold', '_STAT_','MSRP','model'], axis = 1)
+    disp = disp[disp['DATE']<datetime.date(2021,4,1)] #update
+
+    #merges disposals and historical incentive into 1 variable, keeps timing consistent
+    historical_vol= pd.merge(incentive, disp, on='DATE', how='inner')
+
+    #pivots incentive to get the monthly avg
+    pivot_incentive = pd.pivot_table(filter_incentive,index='_TYPE_',values='incentive',aggfunc='mean')
+    pivot_incentive = pivot_incentive.reset_index()
+    pivot_incentive['delta'] = pivot_incentive['incentive'] - pivot_incentive['incentive'][0]
+
+    #creats data, type and filters for historial or forecast
+    final_incentive['DATE'] = pd.to_datetime(final_incentive['monyy_sold'], format="%m/%d/%Y").dt.date #create date colum
+    final_incentive['type'] = ['Historical' if  x < datetime.date(2021,4,1) else 'Forecast' for x in final_incentive['DATE']] #historical vs forecast #update
+    final_incentive = final_incentive[final_incentive['model']==f'{name}']
+    final_historical = final_incentive[final_incentive['type'] == 'Historical']
+    final_forecast = final_incentive[final_incentive['type'] != 'Historical']
+    
+    #merges the forcasted incentive and maturities, so chart will be same time frame
+    Forecast_Incen_Vol= pd.merge(final_forecast, model_volume, on='DATE', how='inner')
+    
+    #averges of two varibales
+    ff= round(Forecast_Incen_Vol.incentive.mean())
+    fff= round(final_forecast.incentive.mean())
+    
+    #format the two variables above
+    b= "{:,.0f}".format(ff)
+    c= "{:,.0f}".format(fff)
+    
+    
+    
+    #create the Charts
+    
+    fig3 = make_subplots(rows=1, cols=1,shared_xaxes=False,vertical_spacing=0.06,
+                    specs=[[{"secondary_y": True}],])  
+
+    fig3.add_trace(go.Scatter(x=final_historical['DATE'], y=final_historical['incentive'],line_shape='linear',marker_color='navy',
+                              line = dict(shape = 'linear', dash = 'solid'),name='Historical Incentive',
+                              
+                              connectgaps = True),secondary_y=False,row=1, col=1)
+    fig3.add_trace(go.Scatter(x=Forecast_Incen_Vol['DATE'], y=Forecast_Incen_Vol['incentive'],line_shape='linear',
+                              line = dict(shape = 'linear', dash = 'dot') ,name="Forecast Incentive",
+                              
+                              connectgaps = True),secondary_y=False,row=1, col=1)
+    
+    fig3.add_trace(go.Bar(x=Forecast_Incen_Vol['DATE'], y=Forecast_Incen_Vol['volume'],name="Maturities",marker_color='midnightblue',opacity=0.3,
+                              text=Forecast_Incen_Vol['volume'].round()),secondary_y=True,row=1, col=1)
+    
+    fig3.add_trace(go.Bar(x=historical_vol['DATE'], y=historical_vol['volume'],name="Historical Volume",marker_color='blue',opacity=0.3,
+                              text=model_volume['volume'].round()),secondary_y=True,row=1, col=1)   
+    
+    
+    fig3.update_layout(yaxis=dict(range=[0,final_historical['incentive'].max()+1000]),
+                       yaxis_tickprefix = '$', yaxis_tickformat = ',.0f',
+                       yaxis2=dict(range=[0,Forecast_Incen_Vol['volume'].max()+5000]),
+                       yaxis2_tickformat = ',.0f',)
+    
+    
+    
+    fig3.update_yaxes(title_text="Volume", secondary_y=True) 
+    
+  
+    
+    fig3.update_layout(title=f'Selected Average Incentive Spend by {name}'+" " + "$" + str(c),
+                       xaxis_title='New Sale Month / Year',
+                       yaxis_title='Incetive Spend')
+    
+    fig3.show()
+    
+   
+final('JETTA','3_1_21')
