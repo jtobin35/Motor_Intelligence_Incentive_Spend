@@ -1,0 +1,1 @@
+plt.show(interact(function, name=all_data.model.unique(),types=incentive._TYPE_.unique(),date=dates))
