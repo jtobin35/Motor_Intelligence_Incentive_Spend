@@ -2,6 +2,8 @@ def final(name,date):
     global all_data
     global final_incentive_all
     global incentive
+    global Forecast_Incen_Vol
+    global historical_vol
     #Final Forecasted Incentives chosen for the forecast with 60 months of historical data
     all_data = pd.read_excel(f'/test/data/hadoop-data/JT/White Book/Final/{date}/FINAL_Incentive.xlsx')
     #Final Forecasted Incentives chosen for the forecast with 60 months of historical data
@@ -74,7 +76,7 @@ def final(name,date):
                               
                               connectgaps = True),secondary_y=False,row=1, col=1)
     fig3.add_trace(go.Scatter(x=Forecast_Incen_Vol['DATE'], y=Forecast_Incen_Vol['incentive'],line_shape='linear',
-                              line = dict(shape = 'linear', dash = 'dot') ,name="Forecast Incentive",
+                              line = dict(shape = 'linear', dash = 'dot') ,name=str(Forecast_Incen_Vol.selected.unique()).strip('[]').strip("''"),
                               
                               connectgaps = True),secondary_y=False,row=1, col=1)
     
@@ -96,9 +98,12 @@ def final(name,date):
     
   
     
-    fig3.update_layout(title=f'Selected Average Incentive Spend by {name}'+" " + "$" + str(c),
+    fig3.update_layout(title= 
+                        f'<b>Average Incentive Spend by {name}'+" " + "$" + str(c) +" </b>" ,
+                       title_x=0.5,
                        xaxis_title='New Sale Month / Year',
-                       yaxis_title='Incetive Spend')
+                       yaxis_title='Incetive Spend',
+                       legend=dict(orientation="h",yanchor="bottom",y=1,xanchor="right", x=.75))
     
     fig3.show()
     
