@@ -6,6 +6,8 @@ def function(name,types,date):
     global final_incentive_all
     global incentive
     global incentive_forecast
+    global final_historical
+    global filter_incentive
     #Final Forecasted Incentives chosen for the forecast with 60 months of historical data
     all_data = pd.read_excel(f'/test/data/hadoop-data/JT/White Book/Final/{date}/FINAL_Incentive.xlsx') 
     #Reads in the active portfolio maturities by model and month
@@ -44,10 +46,25 @@ def function(name,types,date):
     #forecasted incentives, Date needs to be updated each forecast
     filter_incentive = incentive[incentive['DATE']>=datetime.date(2021,4,1)] #update
     
+    #Final forecasts separates historical from not historical to chart
+    final_incentive['DATE'] = pd.to_datetime(final_incentive['monyy_sold'], format="%m/%d/%Y").dt.date #create date colum
+    final_incentive['type'] = ['Historical' if  x < datetime.date(2021,4,1) else 'Forecast' for x in final_incentive['DATE']] #update #historical vs forecast
+    final_incentive = final_incentive[final_incentive['model']==f'{name}']
+    final_historical = final_incentive[final_incentive['type'] == 'Historical']
+    final_forecast = final_incentive[final_incentive['type'] != 'Historical']
+    
+    
+    
+    _12_month = final_historical[-12:]
+    _12_month['month'] = pd.to_datetime(_12_month['monyy_sold'], format="%m/%d/%Y").dt.date #create date colum
+    _12_month['_TYPE_'] = 'Historical'
+    _12_month=_12_month.reindex(columns= ['month', '_TYPE_', 'incentive','model','DATE','type'])
+    _12_month = _12_month.append(filter_incentive,ignore_index=True)
+    
     #pivoting the incentive by type, which is the 24 forecasted methods, it's then aggregating to a mean
     #created a delta varibale which is historical 12 month avg - forecast avg
     #created a MAPE varibale, which is the MAPE of 12 month historical to forecast
-    pivot_incentive = pd.pivot_table(filter_incentive,index='_TYPE_',values='incentive',aggfunc='mean')
+    pivot_incentive = pd.pivot_table(_12_month,index='_TYPE_',values='incentive',aggfunc='mean')
     pivot_incentive = pivot_incentive.reset_index()
     pivot_incentive['delta'] = pivot_incentive['incentive'] - pivot_incentive['incentive'][0]
     pivot_incentive['MAPE'] = abs(pivot_incentive['delta'])/pivot_incentive['incentive'][0]  
@@ -56,13 +73,9 @@ def function(name,types,date):
     
     
 
-    #Final forecasts separates historical from not historical to chart
-    final_incentive['DATE'] = pd.to_datetime(final_incentive['monyy_sold'], format="%m/%d/%Y").dt.date #create date colum
-    final_incentive['type'] = ['Historical' if  x < datetime.date(2021,4,1) else 'Forecast' for x in final_incentive['DATE']] #update #historical vs forecast
-    final_incentive = final_incentive[final_incentive['model']==f'{name}']
-    final_historical = final_incentive[final_incentive['type'] == 'Historical']
-    final_forecast = final_incentive[final_incentive['type'] != 'Historical']
+
     
+
     
     
     #one forecasted type
